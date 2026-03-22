@@ -4,8 +4,10 @@ data/
 *.zip
 .env
 .DS_Store
-node_modules/
-dist/
-*.zip
-.env
+
+# my-daily-prayers is its own git repo
+my-daily-prayers/
+
+# Cursor IDE
+.cursor/
 

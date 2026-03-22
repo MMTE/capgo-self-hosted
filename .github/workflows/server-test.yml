@@ -1,0 +1,57 @@
+name: Server
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server deps
+        run: cd server && npm ci
+
+      - name: Start server
+        run: |
+          cd server
+          nohup node index.js > /tmp/capgo.log 2>&1 &
+          echo $! > /tmp/capgo.pid
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3001/v1/admin/bundles >/dev/null; then
+              ready=1; break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            echo "Server failed to start"; cat /tmp/capgo.log; exit 1
+          fi
+          echo "Server is up"
+
+      - name: Upload test bundle
+        run: |
+          echo "test bundle content" > /tmp/test.txt
+          zip /tmp/test.zip /tmp/test.txt
+          curl -sf -X POST http://127.0.0.1:3001/v1/admin/upload \
+            -F "file=@/tmp/test.zip" \
+            -F "version=0.0.1"
+
+      - name: Check update endpoint returns bundle
+        run: |
+          RES=$(curl -sf -X POST http://127.0.0.1:3001/v1/updates \
+            -H "Content-Type: application/json" \
+            -d '{"platform":"android","device_id":"ci","app_id":"test","version_name":"0.0.0","is_emulator":false,"is_prod":true}')
+          echo "$RES"
+          echo "$RES" | jq -e '.version == "0.0.1"'
+
+      - name: List bundles endpoint
+        run: curl -sf http://127.0.0.1:3001/v1/admin/bundles | jq .
