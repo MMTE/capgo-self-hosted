@@ -53,8 +53,8 @@ app.post('/v1/updates', (req, res) => {
   if (is_prod && !channel.allow_prod) return res.json({ error: 'no_new_version_available', message: 'Prod builds not allowed' });
   if (!is_prod && !channel.allow_dev) return res.json({ error: 'no_new_version_available', message: 'Dev builds not allowed' });
 
-  // Find latest bundle newer than current version
-  const bundles = db.prepare('SELECT * FROM bundles ORDER BY id DESC').all();
+  // Find latest bundle newer than current version, scoped to this app
+  const bundles = db.prepare('SELECT * FROM bundles WHERE app_id = ? ORDER BY id DESC').all(app_id || '');
   let latest = null;
   for (const bundle of bundles) {
     if (currentVersion === 'builtin' || semverGt(bundle.version, currentVersion)) {
@@ -69,9 +69,10 @@ app.post('/v1/updates', (req, res) => {
   }
 
   const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  const bundleFilename = `${latest.app_id}_${latest.version}.zip`;
   res.json({
     version: latest.version,
-    url: `${baseUrl}/v1/bundles/${latest.version}.zip`,
+    url: `${baseUrl}/v1/bundles/${bundleFilename}`,
     checksum: latest.checksum
   });
 });
@@ -87,6 +88,26 @@ app.post('/v1/stats', (req, res) => {
   `).run(action, device_id, app_id, version_name, version_build, platform);
 
   res.json({ status: 'ok' });
+});
+
+// ── POST /v1/errors — Client error reporting ─────────────────────────
+app.post('/v1/errors', (req, res) => {
+  const { device_id, app_id, version, platform, message, stack, context } = req.body;
+  console.error('[error]', { device_id, app_id, version, platform, message, context });
+
+  db.prepare(`
+    INSERT INTO errors (device_id, app_id, version, platform, message, stack, context)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(device_id, app_id, version, platform, message, stack || '', context || '');
+
+  res.json({ status: 'ok' });
+});
+
+// ── GET /v1/admin/errors — List recent errors ────────────────────────
+app.get('/v1/admin/errors', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const errors = db.prepare('SELECT * FROM errors ORDER BY id DESC LIMIT ?').all(limit);
+  res.json(errors);
 });
 
 // ── GET /v1/channel_self — List compatible channels ──────────────────
@@ -160,10 +181,10 @@ app.delete('/v1/channel_self', (req, res) => {
   res.json({ status: 'ok', message: 'Device channel reset to "production"' });
 });
 
-// ── GET /v1/bundles/:version.zip — Serve bundle file ─────────────────
-app.get('/v1/bundles/:version.zip', (req, res) => {
-  const version = req.params.version;
-  const filePath = path.join(bundlesDir, `${version}.zip`);
+// ── GET /v1/bundles/:filename — Serve bundle file ────────────────────
+app.get('/v1/bundles/:filename', (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(bundlesDir, filename);
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'not_found', message: 'Bundle not found' });
@@ -178,12 +199,15 @@ const upload = multer({ dest: path.join(__dirname, 'data', 'tmp') });
 
 // ── POST /v1/admin/upload — Upload new bundle ────────────────────────
 app.post('/v1/admin/upload', upload.single('file'), (req, res) => {
-  const { version } = req.body;
+  const { version, app_id } = req.body;
   if (!version || !req.file) {
     return res.status(400).json({ status: 'error', message: 'version and file are required' });
   }
+  if (!app_id) {
+    return res.status(400).json({ status: 'error', message: 'app_id is required' });
+  }
 
-  const destPath = path.join(bundlesDir, `${version}.zip`);
+  const destPath = path.join(bundlesDir, `${app_id}_${version}.zip`);
   fs.renameSync(req.file.path, destPath);
 
   const fileBuffer = fs.readFileSync(destPath);
@@ -191,20 +215,20 @@ app.post('/v1/admin/upload', upload.single('file'), (req, res) => {
 
   try {
     db.prepare(`
-      INSERT INTO bundles (version, checksum, file_path) VALUES (?, ?, ?)
-      ON CONFLICT(version) DO UPDATE SET checksum = excluded.checksum, file_path = excluded.file_path
-    `).run(version, checksum, destPath);
+      INSERT INTO bundles (app_id, version, checksum, file_path) VALUES (?, ?, ?, ?)
+      ON CONFLICT(app_id, version) DO UPDATE SET checksum = excluded.checksum, file_path = excluded.file_path
+    `).run(app_id, version, checksum, destPath);
   } catch (err) {
     return res.status(500).json({ status: 'error', message: err.message });
   }
 
-  console.log(`[upload] Bundle v${version} uploaded (checksum: ${checksum})`);
-  res.json({ status: 'ok', version, checksum });
+  console.log(`[upload] Bundle ${app_id}@${version} uploaded (checksum: ${checksum})`);
+  res.json({ status: 'ok', app_id, version, checksum });
 });
 
 // ── GET /v1/admin/bundles — List all bundles ─────────────────────────
 app.get('/v1/admin/bundles', (req, res) => {
-  const bundles = db.prepare('SELECT id, version, checksum, created_at FROM bundles ORDER BY id DESC').all();
+  const bundles = db.prepare('SELECT id, app_id, version, checksum, created_at FROM bundles ORDER BY id DESC').all();
   res.json(bundles);
 });
 

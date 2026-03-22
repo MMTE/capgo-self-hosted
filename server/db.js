@@ -10,13 +10,21 @@ const db = new Database(path.join(dataDir, 'capgo.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migrate: drop old bundles table if it lacks app_id column
+const bundleCols = db.prepare("PRAGMA table_info(bundles)").all();
+if (bundleCols.length > 0 && !bundleCols.some(c => c.name === 'app_id')) {
+  db.exec('DROP TABLE bundles');
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS bundles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    version TEXT UNIQUE NOT NULL,
+    app_id TEXT NOT NULL,
+    version TEXT NOT NULL,
     checksum TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(app_id, version)
   );
 
   CREATE TABLE IF NOT EXISTS channels (
@@ -51,6 +59,18 @@ db.exec(`
     version_name TEXT,
     version_build TEXT,
     platform TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS errors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT,
+    app_id TEXT,
+    version TEXT,
+    platform TEXT,
+    message TEXT,
+    stack TEXT,
+    context TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
 `);

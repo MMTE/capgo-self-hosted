@@ -1,0 +1,16 @@
+services:
+  capgo-server:
+    build: ./server
+    container_name: capgo-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - HOST=0.0.0.0
+      - BASE_URL=https://capgo.abrane.ir
+    volumes:
+      - capgo-data:/app/data
+
+volumes:
+  capgo-data:
