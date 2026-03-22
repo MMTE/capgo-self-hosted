@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+*.zip
+.env
+.DS_Store
+node_modules/
+dist/
+*.zip
+.env
+
