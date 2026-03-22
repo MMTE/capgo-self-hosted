@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     CapacitorUpdater: {
-      autoUpdate: true,
+      autoUpdate: false,
       updateUrl: 'http://localhost:3001/v1/updates',
       statsUrl: 'http://localhost:3001/v1/stats',
       channelUrl: 'http://localhost:3001/v1/channel_self'

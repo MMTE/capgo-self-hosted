@@ -79,9 +79,62 @@
     }
     .status-success { color: #4ade80 !important; }
     .status-error { color: #f87171 !important; }
+
+    /* Update banner — fixed top, non-blocking */
+    .update-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      background: linear-gradient(90deg, #059669, #10b981);
+      color: #fff;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+      animation: slideDown 0.3s ease-out;
+    }
+    .update-banner.visible { display: flex; }
+    .update-banner .banner-text { flex: 1; }
+    .update-banner .banner-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .update-banner .btn-update {
+      background: #fff;
+      color: #059669;
+      border: none;
+      border-radius: 6px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .update-banner .btn-dismiss {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.8);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 0.25rem;
+      line-height: 1;
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
+  <div id="update-banner" class="update-banner">
+    <span class="banner-text" id="banner-text">A new version is available!</span>
+    <div class="banner-actions">
+      <button class="btn-update" id="banner-update-btn">Update now</button>
+      <button class="btn-dismiss" id="banner-dismiss-btn">&times;</button>
+    </div>
+  </div>
   <div id="app">
     <div class="card">
       <h1>Capgo Demo</h1>

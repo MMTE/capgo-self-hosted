@@ -1,74 +1,68 @@
-# Self-Hosted Capgo OTA Update System
+# Capgo Self-Hosted
 
-A complete self-hosted OTA update server for Capacitor apps using `@capgo/capacitor-updater`.
+Lightweight self-hosted OTA update server for Capacitor apps. Implements the `@capgo/capacitor-updater` plugin API so your apps can receive over-the-air JavaScript bundle updates without app store review.
 
-## Prerequisites
+Production instance: **https://capgo.abrane.ir**
 
-- Node.js 18+
-- npm
+## Architecture
 
-## Quick Start
-
-### 1. Start the Server
-
-```bash
-cd server
-npm install
-npm start
+```
+server/          Express + SQLite OTA server (port 3001)
+sample-app/      Capacitor demo app with manual update UI
+scripts/         Build & upload helpers
 ```
 
-Server runs on `http://localhost:3001`.
+Caddy reverse-proxies `capgo.abrane.ir` → `localhost:3001` with wildcard TLS for `*.abrane.ir`.
 
-### 2. Build & Upload a Bundle
+## Setup
 
 ```bash
-cd sample-app
-npm install
-npm run build
-bash ../scripts/build-and-upload.sh
+cd server && npm install && npm start
 ```
 
-### 3. Test OTA Updates
-
-1. Bump `version` in `sample-app/package.json` and `APP_VERSION` in `src/main.ts`
-2. Rebuild and upload: `bash scripts/build-and-upload.sh`
-3. Open the app and click **Check for Updates** — it detects the new version
+Set `BASE_URL=https://capgo.abrane.ir` (or your domain) so bundle download URLs in `/v1/updates` responses point to the right place.
 
 ## API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/v1/updates` | Check for updates (used by plugin) |
-| POST | `/v1/stats` | Report device statistics |
-| GET | `/v1/channel_self` | List compatible channels |
-| PUT | `/v1/channel_self` | Get device channel |
-| POST | `/v1/channel_self` | Set device channel |
-| DELETE | `/v1/channel_self` | Reset device channel |
-| GET | `/v1/bundles/:version.zip` | Download bundle zip |
-| POST | `/v1/admin/upload` | Upload bundle (multipart) |
-| GET | `/v1/admin/bundles` | List all bundles |
+| POST | `/v1/updates` | Update check (used by the plugin) |
+| POST | `/v1/stats` | Device statistics |
+| GET/PUT/POST/DELETE | `/v1/channel_self` | Channel management |
+| POST | `/v1/admin/upload` | Upload bundle (multipart: `file` + `version`) |
+| GET | `/v1/admin/bundles` | List bundles |
+| GET | `/v1/bundles/:version.zip` | Download bundle |
 | POST | `/v1/admin/channels` | Create channel |
 
-### Upload a Bundle
+### Upload a bundle
 
 ```bash
-curl -X POST http://localhost:3001/v1/admin/upload \
+curl -X POST https://capgo.abrane.ir/v1/admin/upload \
   -F "file=@bundle.zip" \
-  -F "version=1.0.1"
+  -F "version=0.2.0"
 ```
 
-### Check for Updates
+### Check for updates
 
 ```bash
-curl -X POST http://localhost:3001/v1/updates \
+curl -X POST https://capgo.abrane.ir/v1/updates \
   -H "Content-Type: application/json" \
-  -d '{"platform":"android","device_id":"test","app_id":"com.capgo.demo","version_name":"1.0.0","is_prod":true}'
+  -d '{"platform":"android","device_id":"test","app_id":"com.capgo.mydailyprayers","version_name":"0.1.0","is_prod":true}'
 ```
 
-## Project Structure
+## Notifications
 
-```
-server/          Express OTA server + SQLite DB
-sample-app/      Capacitor sample app with update UI
-scripts/         Build & upload helpers
+Build logs and APK artifacts are sent to Telegram via [Watch Tower](https://github.com/MMTE/watch-tower) (`watchtower.abrane.ir`).
+
+```bash
+# Send a log
+curl -X POST https://watchtower.abrane.ir/api/log \
+  -H "x-api-key: $WATCHTOWER_KEY" \
+  -d '{"source":"capgo","log":"BUILD SUCCESSFUL"}'
+
+# Send the APK
+curl -X POST https://watchtower.abrane.ir/api/file \
+  -H "x-api-key: $WATCHTOWER_KEY" \
+  -F "file=@app-debug.apk" \
+  -F "caption=My Daily Prayers debug build"
 ```
