@@ -1,0 +1,8 @@
+{
+  "name": "capgo",
+  "private": true,
+  "description": "Root tooling (optional): run one-time data migration with server/migrate-data.js",
+  "dependencies": {
+    "better-sqlite3": "^11.6.0"
+  }
+}

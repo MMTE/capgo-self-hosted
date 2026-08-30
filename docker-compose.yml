@@ -3,14 +3,31 @@ services:
     build: ./server
     container_name: capgo-server
     restart: unless-stopped
-    ports:
-      - "3001:3001"
     environment:
-      - PORT=3001
-      - HOST=0.0.0.0
       - BASE_URL=https://capgo.abrane.ir
+      - WATCHTOWER_KEY=${WATCHTOWER_KEY:-}
+      - WATCHTOWER_URL=${WATCHTOWER_URL:-}
     volumes:
-      - capgo-data:/app/data
+      - capgo-data:/app/pb_data
+    networks:
+      - app
+      - caddy
+
+  capgo-admin:
+    build: ./admin
+    container_name: capgo-admin
+    restart: unless-stopped
+    environment:
+      - VITE_PB_URL=https://capgo.abrane.ir
+    networks:
+      - app
+      - caddy
 
 volumes:
   capgo-data:
+
+networks:
+  app:
+  caddy:
+    external: true
+    name: caddy-net

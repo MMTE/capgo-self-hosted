@@ -1,15 +1,12 @@
-FROM node:20-slim
-
+FROM alpine:3.19
+ARG PB_VERSION=0.25.9
+ARG TARGETARCH
+RUN apk add --no-cache ca-certificates wget unzip \
+    && wget -O /tmp/pb.zip "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_${TARGETARCH}.zip" \
+    && unzip /tmp/pb.zip -d /usr/local/bin/ && rm /tmp/pb.zip
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
-
-COPY package.json package-lock.json* ./
-RUN npm install --production
-
-COPY . .
-RUN rm -rf data
-
-EXPOSE 3001
-
-CMD ["node", "index.js"]
+COPY pb_hooks/ ./pb_hooks/
+COPY pb_migrations/ ./pb_migrations/
+RUN mkdir -p /app/pb_data/bundles
+EXPOSE 8090
+CMD ["pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/app/pb_data", "--hooksDir=/app/pb_hooks", "--migrationsDir=/app/pb_migrations"]
